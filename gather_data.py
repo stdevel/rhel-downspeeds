@@ -10,6 +10,7 @@ import urllib.request
 import json
 import sys
 import math
+import datetime
 import requests
 
 LOGGER = logging.getLogger("gather_data")
@@ -20,10 +21,184 @@ LOG_LEVEL = None
 """
 logging: Logger level
 """
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 """
 str: Program version
 """
+
+
+def _get_date(timestamp):
+    """
+    Returns the datetime object from a string
+
+    :param timestamp: Timestamp/string
+    :type timestamp: str/int
+    """
+    if isinstance(timestamp, int):
+        # UNIX timestamp
+        try:
+            _res = datetime.datetime.fromtimestamp(timestamp/1000).date()
+        except ZeroDivisionError:
+            _res = False
+    else:
+        # ISO 8601 short
+        try:
+            _res = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%SZ').date()
+        except ValueError as err:
+            if "does not match format" in str(err).lower():
+                LOGGER.debug("Invalid format, going on")
+
+        # ISO 8601 long
+        try:
+            _res = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ').date()
+        except ValueError as err:
+            if "does not match format" in str(err).lower():
+                LOGGER.debug("Invalid format, going on")
+    return _res
+
+
+def _get_erratum(errata, erratum_name, distribution=None):
+    """
+    Returns a single erratum from a list
+
+    :param errata: List of errata
+    :type errata: list
+    :param erratum_name: Erratum name
+
+    :type erratum_name: str
+    :param distribution: Linux distribution (rockylinux, almalinux)
+    :type distribution: str
+    """
+    _name = _replace_erratum_prefix(erratum_name, distribution)
+    LOGGER.debug("Trying to find '%s' as '%s'", erratum_name, _name)
+    if distribution == 'rockylinux':
+        _res = [x for x in errata if x['name'] == _name]
+    elif distribution == 'almalinux':
+        _res = [x for x in errata if x['updateinfo_id'] == _name]
+    else:
+        _res = False
+    return _res
+
+
+def _replace_erratum_prefix(erratum_name, distribution='rhel'):
+    """
+    Replaces a distribution-specific erratum prefix
+
+    :param erratum_name: Erratum name
+    :type erratum_type: str
+    :param distribution: Distribution name (rhel, rockylinux, almalinux)
+    :type distribution: str
+    """
+    LOGGER.debug(
+        "Converting '%s' for distribution '%s'",
+        erratum_name,
+        distribution
+    )
+    if distribution == "rhel":
+        _err = f"RHSA-{erratum_name[5:]}"
+    elif distribution == "rockylinux":
+        _err = f"RLSA-{erratum_name[5:]}"
+    elif distribution == "almalinux":
+        _err = f"ALSA-{erratum_name[5:]}"
+    else:
+        _err = False
+    return _err
+
+
+def calculate_deltas(rhel_file, rockylinux_file, almalinux_file, release):
+    """
+    Calculates delta between distributions
+
+    :param rhel_file: RHEL errata cache filename
+    :type rhel_file: str
+    :param rockylinux_file: Rocky Linux errata cache filename
+    :type rockylinux_file: str
+    :param almalinux_file: AlmaLinux errata cache filename
+    :type almalinux_file: str
+    :param release: distrubution release
+    :type release: int
+    """
+    try:
+        # load files
+        with open(rhel_file, encoding="utf-8") as _file:
+            _json = _file.read()
+        rhel_errata = json.loads(_json)
+
+        with open(rockylinux_file, encoding="utf-8") as _file:
+            _json = _file.read()
+        rockylinux_errata = json.loads(_json)
+
+        with open(almalinux_file, encoding="utf-8") as _file:
+            _json = _file.read()
+        almalinux_errata = json.loads(_json)
+
+        # scan RHEL errata
+        _data = []
+        for _erratum in rhel_errata:
+            _entry = {}
+            _rheldate = _get_date(_erratum['portal_publication_date'])
+            LOGGER.debug(
+                "Checking errata '%s' (%s) from %s...",
+                _erratum['id'],
+                _erratum['portal_synopsis'],
+                _rheldate.strftime('%Y-%m-%d')
+            )
+            _entry['rhel_name'] = _erratum['id']
+            _entry['rhel_date'] = _rheldate.strftime('%Y-%m-%d')
+
+            # check for matching Rocky Linux erratum
+            _rocky = _get_erratum(rockylinux_errata, _erratum['id'], 'rockylinux')
+            if _rocky:
+                _rockydate = _get_date(_rocky[0]['publishedAt'])
+                LOGGER.debug(
+                    "Found matching Rocky Linux erratum '%s' (%s) from %s...",
+                    _rocky[0]['name'],
+                    _rocky[0]['synopsis'],
+                    _rockydate
+                )
+                _entry['rockylinux_name'] = _rocky[0]['name']
+                _entry['rockylinux_date'] = _rockydate.strftime('%Y-%m-%d')
+                _entry['rockylinux_drift'] = (_rockydate - _rheldate).days
+            else:
+                LOGGER.info(
+                    "Found no matching Rocky Linux erratum for '%s' (%s)",
+                    _erratum['id'],
+                    _erratum['portal_synopsis']
+                )
+
+            # check for matching AlmaLinux erratum
+            _alma = _get_erratum(almalinux_errata, _erratum['id'], 'almalinux')
+            if _alma:
+                _almadate = _get_date(_alma[0]['issued_date']['$date'])
+                LOGGER.debug(
+                    "Found matching AlmaLinux erratum '%s' (%s) from %s...",
+                    _alma[0]['updateinfo_id'],
+                    _alma[0]['title'],
+                    _almadate
+                )
+                _entry['almalinux_name'] = _alma[0]['updateinfo_id']
+                _entry['almalinux_date'] = _almadate.strftime('%Y-%m-%d')
+                _entry['almalinux_drift'] = (_almadate - _rheldate).days
+            else:
+                LOGGER.info(
+                    "Found no matching AlmaLinux erratum for '%s' (%s)",
+                    _erratum['id'],
+                    _erratum['portal_synopsis']
+                )
+
+            # add dataset to list
+            _data.append(_entry)
+
+        # store all the differences
+        _output = f"downspeeds-{release}.json"
+        with open(_output, 'w', encoding="utf-8") as _f:
+            json.dump(_data, _f)
+        LOGGER.info("Stored differences in '%s'", _output)
+
+    except PermissionError:
+        LOGGER.error("Cache files can't be accessed - check permissions")
+    except FileNotFoundError:
+        LOGGER.error("At least one cached file not found")
 
 
 def gather_rhel(release, options):
@@ -246,7 +421,13 @@ def main(options, args):
     gather_almalinux(options.target_release, options)
     gather_rockylinux(options.target_release, options)
 
-    LOGGER.debug("TODO: Analyzing data")
+    LOGGER.debug("Analyzing data...")
+    calculate_deltas(
+        f"rhel-{options.target_release}.json",
+        f"rockylinux-{options.target_release}.json",
+        f"almalinux-{options.target_release}.json",
+        options.target_release
+    )
 
 
 def parse_options(args=None):
@@ -274,15 +455,6 @@ and various RHEL-downstream errata databases and exports them for comparison.
         default=False,
         action="store_true",
         help="enable debugging outputs (default: no)",
-    )
-    # -o / --output-file
-    gen_opts.add_argument(
-        "-o",
-        "--output-file",
-        dest="output_file",
-        default="$release-$date",
-        action="store",
-        help="output filename postfix (default: $release-$date.json)"
     )
     # -c / --use-cache
     gen_opts.add_argument(
