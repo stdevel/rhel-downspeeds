@@ -1,0 +1,86 @@
+<html>
+   <head> 
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.js"></script>
+      <script type="text/javascript" src="chart.3.9.1.js"></script>
+      <script type="text/javascript" src="https://hammerjs.github.io/dist/hammer.js"></script>
+      <script type="text/javascript" src="chartjs-plugin-zoom.js"></script>
+      <script type="text/javascript">
+        window.onload=function(){
+    $(document).ready(function() {
+    var labels = [];
+    var dataXXX = [];
+    var dataYYY = [];
+    $.ajax({
+        type: 'GET',
+        url: './downspeeds-9.json',
+        dataType: 'json',
+        success: function(field) {
+        for (var i = 0; i < field.length; i++) {
+            labels.push(field[i].rhel_name);
+            dataXXX.push(field[i].rockylinux_drift);
+            dataYYY.push(field[i].almalinux_drift);
+        }
+        var ctx = document.getElementById("myChart").getContext('2d');
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+            labels: labels,
+            datasets: [{
+                label: 'Rocky Linux',
+                data: dataXXX,
+                fill: false,
+                backgroundColor: 'green',
+                borderColor: 'green',
+                },
+                {
+                label: 'AlmaLinux',
+                data: dataYYY,
+                fill: false,
+                backgroundColor: 'blue',
+                borderColor: 'blue',
+                },
+            ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        type: 'linear',
+                        beginAtZero: true
+                    }
+                },
+                ticks: {
+                    major: {
+                        enabled: true
+                    }
+                },
+                plugins: {  
+                    title: {
+                        display: true,
+                        text: "EL9"
+                    },
+                    zoom: {
+                        zoom: {
+                        wheel: {
+                            enabled: true,
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        mode: 'x',
+                        scaleMode: 'x'
+                        }
+                    }
+                }
+            }
+        });
+        }
+    });
+    })
+        }
+    </script> 
+    </head> 
+    <body> 
+        <canvas id="myChart" style="display: block; box-sizing: border-box; touch-action: none; user-select: none; height: 384px; width: 768px;" width="768" height="384"></canvas>
+    </body>
+</html>

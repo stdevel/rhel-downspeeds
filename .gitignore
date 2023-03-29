@@ -132,6 +132,8 @@ dmypy.json
 rhel*.json
 almalinux*.json
 rockylinux*.json
+*-pretty.json
+*.tmp
 
 # etc.
 TODO
