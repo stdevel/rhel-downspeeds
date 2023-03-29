@@ -165,6 +165,9 @@ def calculate_deltas(rhel_file, rockylinux_file, almalinux_file, release):
                     _erratum['id'],
                     _erratum['portal_synopsis']
                 )
+                _entry['rockylinux_name'] = None
+                _entry['rockylinux_date'] = None
+                _entry['rockylinux_drift'] = None
 
             # check for matching AlmaLinux erratum
             _alma = _get_erratum(almalinux_errata, _erratum['id'], 'almalinux')
@@ -185,6 +188,9 @@ def calculate_deltas(rhel_file, rockylinux_file, almalinux_file, release):
                     _erratum['id'],
                     _erratum['portal_synopsis']
                 )
+                _entry['almalinux_name'] = None
+                _entry['almalinux_date'] = None
+                _entry['almalinux_drift'] = None
 
             # add dataset to list
             _data.append(_entry)
