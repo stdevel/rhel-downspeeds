@@ -22,6 +22,13 @@ Access the following pages:
 - [http://localhost:8000/el8.html (EL8)](http://localhost:8000/el8.html)
 - [http://localhost:8000/el9.html (EL9)](http://localhost:8000/el9.html)
 
+Alternatively, use these public URLs:
+
+- [EL8](https://stdevel.github.io/rhel-downspeeds/el8.html)
+- [EL9](https://stdevel.github.io/rhel-downspeeds/el9.html)
+
+**Note**: These information might be outdated at some time, check-out the last change of the `rhel`, `rockylinux` and `almalinux` JSON files in the repository.
+
 ## URLs
 
 | Distribution | Release | Link | Notes |
