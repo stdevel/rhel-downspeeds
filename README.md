@@ -4,7 +4,23 @@ Compares errata delivery of RHEL downstreams such as AlmaLinux and Rocky Linux u
 
 ## Usage
 
-Run the [`gather_data.py`](gather_data.py) script, it will access errata databases and create a data result file.
+Run the [`gather_data.py`](gather_data.py) script, it will access errata databases and create a data result file:
+
+```command
+$ ./gather_data.py
+$ ./gather_data.py -r8
+```
+
+Run a simple Python webserver to access the files (opening it without a server will cause CORS issues on most browsers):
+
+```command
+$ python3 -m http.server
+```
+
+Access the following pages:
+
+- [http://localhost:8000/el8.html (EL8)](http://localhost:8000/el8.html)
+- [http://localhost:8000/el9.html (EL9)](http://localhost:8000/el9.html)
 
 ## URLs
 
